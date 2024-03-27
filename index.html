@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -34,6 +33,46 @@
             video.style.display = 'block';
         }
 
+        // Custom function for edge detection (Sobel operator)
+        function detectEdges(imageData) {
+            const grayscale = new Uint8Array(imageData.width * imageData.height);
+            const edgeData = new Uint8ClampedArray(imageData.data.length);
+            
+            // Convert image to grayscale
+            for (let i = 0; i < imageData.data.length; i += 4) {
+                const avg = (imageData.data[i] + imageData.data[i + 1] + imageData.data[i + 2]) / 3;
+                grayscale[i / 4] = avg;
+            }
+            
+            // Apply Sobel operator
+            for (let x = 1; x < imageData.width - 1; x++) {
+                for (let y = 1; y < imageData.height - 1; y++) {
+                    const pixelX = (x + y * imageData.width) * 4;
+                    
+                    const gx = (-grayscale[(x - 1) + (y - 1) * imageData.width]) + 
+                               (grayscale[(x + 1) + (y - 1) * imageData.width]) +
+                               (-2 * grayscale[(x - 1) + y * imageData.width]) + 
+                               (2 * grayscale[(x + 1) + y * imageData.width]) +
+                               (-grayscale[(x - 1) + (y + 1) * imageData.width]) + 
+                               (grayscale[(x + 1) + (y + 1) * imageData.width]);
+
+                    const gy = (-grayscale[(x - 1) + (y - 1) * imageData.width]) + 
+                               (-2 * grayscale[x + (y - 1) * imageData.width]) +
+                               (-grayscale[(x + 1) + (y - 1) * imageData.width]) + 
+                               (grayscale[(x - 1) + (y + 1) * imageData.width]) +
+                               (2 * grayscale[x + (y + 1) * imageData.width]) + 
+                               (grayscale[(x + 1) + (y + 1) * imageData.width]);
+
+                    const color = Math.sqrt(gx * gx + gy * gy);
+                    edgeData[pixelX] = color;
+                    edgeData[pixelX + 1] = color;
+                    edgeData[pixelX + 2] = color;
+                    edgeData[pixelX + 3] = 255;
+                }
+            }
+            return new ImageData(edgeData, imageData.width, imageData.height);
+        }
+
         // Khi video được tải
         video.addEventListener('loadedmetadata', function() {
             // Thêm sự kiện để vẽ canvas mỗi khi một frame mới của video được hiển thị
@@ -46,21 +85,12 @@
 
                 // Tạo một imageData từ canvas
                 var imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-                var src = cv.matFromImageData(imageData);
 
-                // Chuyển đổi ảnh sang ảnh xám
-                var gray = new cv.Mat();
-                cv.cvtColor(src, gray, cv.COLOR_RGBA2GRAY);
-
-                // Phát hiện biên cạnh của ảnh xám
-                var edges = new cv.Mat();
-                cv.Canny(gray, edges, 50, 150);
+                // Detect edges using Sobel operator
+                var edges = detectEdges(imageData);
 
                 // Vẽ ảnh biên cạnh lên canvas
-                cv.imshow('canvas', edges);
-
-                // Giải phóng bộ nhớ
-                src.delete(); gray.delete(); edges.delete();
+                ctx.putImageData(edges, 0, 0);
 
                 // Hiển thị frame hiện tại
                 console.log("Current Frame:", currentFrame);
